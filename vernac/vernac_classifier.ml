@@ -167,6 +167,7 @@ let classify_vernac e =
     | VernacCombinedScheme ({v=id},_) -> VtSideff ([id], VtLater)
     | VernacUniverse _ | VernacConstraint _
     | VernacCanonical _ | VernacCoercion _ | VernacIdentityCoercion _
+    | VernacEquivalence _ | VernacRegisterEquivalences _
     | VernacCreateHintDb _ | VernacRemoveHints _ | VernacHints _
     | VernacArguments _
     | VernacReserve _

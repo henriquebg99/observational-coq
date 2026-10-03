@@ -426,6 +426,9 @@ type nonrec synpure_vernac_expr =
   | VernacCoercion of qualid or_by_notation *
       (coercion_class * coercion_class) option
   | VernacIdentityCoercion of lident * coercion_class * coercion_class
+  | VernacEquivalence of lident * qualid * qualid *
+      (constr_expr * constr_expr * constr_expr * constr_expr)
+  | VernacRegisterEquivalences of qualid list
   | VernacNameSectionHypSet of lident * section_subset_expr
 
   (* Type classes *)

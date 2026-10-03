@@ -1168,4 +1168,33 @@ let declare_inductive_observational_data ?loc (kn,i) =
     warn_about_sections ();
   (* generate stuff *)
   fetch_observational_data ();
-  declare_one_inductive_obs_eqs ?loc (kn,i);
+  declare_one_inductive_obs_eqs ?loc (kn,i)
+
+
+(** Rewrite rule for cast between two inductives related by an equivalence:
+
+      cast@{u} A B ?e ?t ==> fwd ?t
+
+    where [fwd : A -> B] is closed *)
+
+let declare_equivalence_cast_rule ?loc ~name indA indB fwd =
+  if not (Environ.rewrite_rules_allowed (Global.env ())) then
+    raise Environ.(RewriteRulesNotAllowed Rule);
+  fetch_observational_data ();
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let sigma, u = Evd.new_univ_level_variable UState.univ_rigid sigma in
+  let uinst = UVars.LevelInstance.of_array ([| |], [| u |]) in
+  let u = Univ.Universe.make u in
+  let mk_ind ind = EConstr.mkIndU (ind, EConstr.EInstance.empty) in
+  let tyA = mk_ind indA and tyB = mk_ind indB in
+  (* the equality is irrelevant, so it is an ignored hole *)
+  let sigma, e = Evarutil.new_evar ~src:(None, Evar_kinds.InternalHole)
+      ~relevance:Sorts.Irrelevant env sigma (make_obseqU u tyA tyB) in
+  let sigma, t = Evarutil.new_evar
+      ~src:(None, Evar_kinds.MatchingVar (Evar_kinds.FirstOrderPatVar (Names.Id.of_string "_")))
+      ~relevance:Sorts.Relevant env sigma tyA in
+  let lhs = make_cast u tyA tyB e t in
+  let rhs = Reductionops.nf_beta env sigma (EConstr.mkApp (EConstr.of_constr fwd, [| t |])) in
+  let rew = make_rewrite_rule ?loc env sigma uinst (EConstr.Unsafe.to_constr lhs) rhs [] in
+  Global.add_rewrite_rules name { rewrules_rules = [rew] }

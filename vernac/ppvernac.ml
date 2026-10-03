@@ -1011,6 +1011,23 @@ let pr_synpure_vernac_expr v =
         spc() ++ str":" ++ spc() ++ pr_class_rawexpr c1 ++ spc() ++ str">->" ++
         spc() ++ pr_class_rawexpr c2)
     )
+  | VernacEquivalence (id,a,b,(fwd,bwd,sect,retr)) ->
+    let pr_field f c = keyword f ++ spc() ++ str":=" ++ spc() ++ pr_lconstr_expr c in
+    return (
+      hov 1 (
+        keyword "Define Equivalence" ++ spc() ++ pr_lident id ++
+        spc() ++ str":" ++ spc() ++ pr_qualid a ++ spc() ++ str"<->" ++
+        spc() ++ pr_qualid b ++ spc() ++ str":=" ++ spc() ++
+        hov 1 (str"{" ++ pr_field "fwd" fwd ++ str";" ++ spc() ++
+               pr_field "bwd" bwd ++ str";" ++ spc() ++
+               pr_field "sect" sect ++ str";" ++ spc() ++
+               pr_field "retr" retr ++ str"}"))
+    )
+
+  | VernacRegisterEquivalences l ->
+    return (
+      hov 1 (keyword "Register Equivalences" ++ spc() ++ prlist_with_sep spc pr_qualid l)
+    )
 
   | VernacInstance (instid, sup, cl, props, info) ->
     return (

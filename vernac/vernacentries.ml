@@ -1471,6 +1471,21 @@ let vernac_identity_coercion ~atts id qids qidt =
   let source = cl_of_qualid qids in
   ComCoercion.try_add_new_identity_coercion id ~local ~poly ~source ~target
 
+(* Equivalences *)
+
+let vernac_equivalence id qida qidb terms =
+  let source = Smartlocate.global_inductive_with_alias qida in
+  let target = Smartlocate.global_inductive_with_alias qidb in
+  ComEquivalence.try_add_new_equivalence id ~source ~target terms;
+  Flags.if_verbose Feedback.msg_info (Id.print id ++ str " is now an equivalence")
+
+let vernac_register_equivalences qids =
+  let locate qid =
+    try Nametab.locate_constant qid
+    with Not_found -> CErrors.user_err (str "Unknown equivalence " ++ Libnames.pr_qualid qid ++ str ".")
+  in
+  ComEquivalence.register_equivalences (List.map locate qids)
+
 (* Type classes *)
 
 let vernac_instance_program ~atts ~pm name bl t props info =
@@ -2496,6 +2511,16 @@ let translate_pure_vernac ?loc ~atts v = let open Vernactypes in match v with
 
   | VernacIdentityCoercion ({v=id},s,t) ->
     vtdefault(fun () -> vernac_identity_coercion ~atts id s t)
+
+  | VernacEquivalence ({v=id},a,b,terms) ->
+    vtdefault(fun () ->
+        unsupported_attributes atts;
+        vernac_equivalence id a b terms)
+
+  | VernacRegisterEquivalences l ->
+    vtdefault(fun () ->
+        unsupported_attributes atts;
+        vernac_register_equivalences l)
 
   (* Type classes *)
   | VernacInstance (name, bl, t, props, info) ->

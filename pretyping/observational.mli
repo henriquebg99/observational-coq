@@ -31,3 +31,7 @@ val declare_observational_rewrite :
    -> Constr.t
    -> Constr.t
    -> Constant.t) ref
+
+(** [declare_equivalence_cast_rule ~name indA indB fwd] declares the rewrite
+    rule [cast A B ?e ?t ==> fwd ?t] between two inductives. *)
+val declare_equivalence_cast_rule : ?loc:Loc.t -> name:Names.Id.t -> Names.inductive -> Names.inductive -> Constr.t -> unit

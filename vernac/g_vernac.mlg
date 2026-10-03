@@ -286,6 +286,8 @@ GRAMMAR EXTEND Gram
           { VernacRegister(g, RegisterCoqlib quid) }
       | IDENT "Register"; IDENT "Scheme"; g = global; "as"; qid = qualid; IDENT "for"; g' = global ->
         { VernacRegister(g, RegisterScheme {inductive = g'; scheme_kind = qid}) }
+      | IDENT "Register"; IDENT "Equivalences"; l = LIST1 global ->
+          { VernacRegisterEquivalences l }
       | IDENT "Register"; IDENT "Inline"; g = global ->
           { VernacRegister(g, RegisterInline) }
       | IDENT "Primitive"; id = ident_decl; typopt = OPT [ ":"; typ = lconstr -> { typ } ]; ":="; r = register_token ->
@@ -849,6 +851,14 @@ GRAMMAR EXTEND Gram
       | IDENT "Coercion"; ntn = by_notation; ":"; s = coercion_class; ">->";
          t = coercion_class ->
           { VernacSynPure (VernacCoercion (CAst.make ~loc @@ ByNotation ntn, Some (s, t))) }
+
+      (* Equivalences *)
+      | IDENT "Define"; IDENT "Equivalence"; id = identref; ":"; a = global; "<->"; b = global; ":=";
+         "{"; IDENT "fwd"; ":="; fwd = lconstr; ";";
+              IDENT "bwd"; ":="; bwd = lconstr; ";";
+              IDENT "sect"; ":="; sect = lconstr; ";";
+              IDENT "retr"; ":="; retr = lconstr; "}" ->
+          { VernacSynPure (VernacEquivalence (id, a, b, (fwd, bwd, sect, retr))) }
 
       | IDENT "Context"; c = LIST1 binder ->
           { VernacSynPure (VernacContext (List.flatten c)) }
