@@ -1480,11 +1480,7 @@ let vernac_equivalence id qida qidb terms =
   Flags.if_verbose Feedback.msg_info (Id.print id ++ str " is now an equivalence")
 
 let vernac_register_equivalences qids =
-  let locate qid =
-    try Nametab.locate_constant qid
-    with Not_found -> CErrors.user_err (str "Unknown equivalence " ++ Libnames.pr_qualid qid ++ str ".")
-  in
-  ComEquivalence.register_equivalences (List.map locate qids)
+  ComEquivalence.register_equivalences qids
 
 (* Type classes *)
 

@@ -19,8 +19,9 @@ open Names
     - [bwd : target -> source]
     - [sect : forall a : source, a ~ bwd (fwd a)]
     - [retr : forall b : target, b ~ fwd (bwd b)]
-    and declares the axiom [id : source ~ target]. No rewrite rule is added
-    before [register_equivalences]. *)
+    It only typechecks the components, and fails if [id] is already used.
+    The axiom [id : source ~ target] and the rewrite rules are only declared
+    by [register_equivalences]. *)
 val try_add_new_equivalence
   :  Id.t
   -> source:inductive
@@ -29,6 +30,7 @@ val try_add_new_equivalence
      * Constrexpr.constr_expr * Constrexpr.constr_expr
   -> unit
 
-(** [register_equivalences equivs] declares the cast rewrite rules for the
-    equivalences [equivs] (given oldest first). It can only be called once. *)
-val register_equivalences : Constant.t list -> unit
+(** [register_equivalences equivs] declares, for the equivalences [equivs]
+    (given oldest first, without repetitions) of the current module, the axioms
+    witnessing them and the cast rewrite rules. It can only be called once. *)
+val register_equivalences : Libnames.qualid list -> unit

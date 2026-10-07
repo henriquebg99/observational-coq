@@ -8,8 +8,9 @@
      sect : forall a : A, a ~ bwd (fwd a)
      retr : forall b : B, b ~ fwd (bwd b)
 
-   It declares an axiom [name : A ~ B].
-   Register Equivalences name1 ... namen. then adds the cast rules (only once). *)
+   It only typechecks the components (and checks that the name is fresh).
+   Register Equivalences name1 ... namen. declares the axioms [name : A ~ B]
+   and adds the cast rules (only once). *)
 
 (** Two copies of the booleans *)
 
@@ -130,10 +131,9 @@ Define Equivalence equiv_nat_N : nat <-> N := {
   sect := nat_N_sect ;
   retr := nat_N_retr }.
 
-(** Each equivalence declares an axiom with the same name *)
+(** Defining an equivalence declares no axiom *)
 
-Check equiv_nat_N : nat ~ N.
-Check bool_equiv : B1 ~ B2.
+Fail Check equiv_nat_N.
 
 (** Equivalences declared in modules *)
 
@@ -167,11 +167,6 @@ Define Equivalence e23 : T2 <-> T3 := {
   sect := fun x => match x with a2 => obseq_refl | b2 => obseq_refl | c2 => obseq_refl end ;
   retr := fun x => match x with a3 => obseq_refl | b3 => obseq_refl | c3 => obseq_refl end }.
 
-(** Defining equivalences adds no reduction rule: the casts are stuck *)
-
-Eval compute in cast B1 B2 bool_equiv t1.
-Eval compute in fun e : T1 ~ T4 => cast T1 T4 e a1.
-
 (** Register Equivalences declares the cast rewrite rules, once, for the given
     equivalences (oldest first). [cast A B e t] reduces to [fwd t], where [fwd]
     goes from [A] to the representative of its class of equivalent inductives,
@@ -180,10 +175,19 @@ Eval compute in fun e : T1 ~ T4 => cast T1 T4 e a1.
 (* Only the equivalences of the current module can be registered *)
 Fail Register Equivalences M.bool_equiv.
 Fail Register Equivalences f.
+Fail Register Equivalences nonexistent.
+
+(* No repetitions *)
+Fail Register Equivalences e12 e12.
 
 Register Equivalences bool_equiv bool_equiv_inline rotate equiv_nat_N e12 e34 e23.
 
 Fail Register Equivalences e12.
+
+(** Registering declares the axioms *)
+
+Check equiv_nat_N : nat ~ N.
+Check bool_equiv : B1 ~ B2.
 
 Eval compute in cast B1 B2 bool_equiv t1.
 Eval compute in cast B2 B1 (obseq_sym bool_equiv) f2.
@@ -202,8 +206,12 @@ Definition cast_a1 : cast T1 T4 (e12 @@@ e23 @@@ e34) a1 ~ b4 := obseq_refl.
 
 (** Errors *)
 
-(* The name is already used *)
+(* The name is already used by an equivalence *)
 Fail Define Equivalence bool_equiv : B1 <-> B2 := {
+  fwd := f ; bwd := g ; sect := f_g_sect ; retr := f_g_retr }.
+
+(* The name is already used by another object *)
+Fail Define Equivalence f : B1 <-> B2 := {
   fwd := f ; bwd := g ; sect := f_g_sect ; retr := f_g_retr }.
 
 (* fwd has the wrong type *)

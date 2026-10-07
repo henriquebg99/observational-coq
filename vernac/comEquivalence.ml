@@ -13,11 +13,15 @@ open Pp
 open Names
 open Equivalences
 open Libobject
+open Libnames
 
 (* Errors *)
 
 type equivalence_error_kind =
   | AlreadyExists
+  | NameUsed
+  | Repeated of Id.t
+  | UniverseLevels
   | InSection
   | NoObseq
   | NotASimpleInductive of inductive
@@ -30,6 +34,12 @@ exception EquivalenceError of equivalence_error_kind
 let explain_equivalence_error id = function
   | AlreadyExists ->
       (Id.print id ++ str " is already an equivalence")
+  | NameUsed ->
+      (Id.print id ++ str " is already used by another object")
+  | Repeated id ->
+      (Id.print id ++ str " appears several times")
+  | UniverseLevels ->
+      (str "The components of the equivalence must not introduce universe levels")
   | InSection ->
       (str "Equivalences cannot be declared inside sections")
   | NoObseq ->
@@ -137,8 +147,11 @@ let interp_equivalence env sigma indA indB (fwd, bwd, sect, retr) =
   let sigma, sect = interp sigma sect sect_ty in
   let sigma, retr_ty = inverse_type env sigma obseq tyB bwd fwd in
   let sigma, retr = interp sigma retr retr_ty in
-  let sigma, axiom_ty = obseq_set_type env sigma obseq tyA tyB in
   let sigma = Evd.minimize_universes sigma in
+  (* the axiom is only declared by [register_equivalences], at Set: nothing
+     else can be declared here *)
+  let levels = fst (Evd.universe_context_set sigma) in
+  if not (Univ.Level.Set.is_empty levels) then raise (EquivalenceError UniverseLevels);
   let to_constr = EConstr.to_constr sigma in
   let fwd = to_constr fwd and bwd = to_constr bwd in
   let sect = to_constr sect and retr = to_constr retr in
@@ -148,7 +161,7 @@ let interp_equivalence env sigma indA indB (fwd, bwd, sect, retr) =
       "sect", sect, to_constr sect_ty;
       "retr", retr, to_constr retr_ty;
     ] in
-  sigma, to_constr axiom_ty, (fwd, bwd, sect, retr)
+  sigma, (fwd, bwd, sect, retr)
 
 (* Declaration *)
 
@@ -173,20 +186,15 @@ let declare_cast_rules equivs =
 
 let registered = Summary.ref ~name:"equivalences_registered" false
 
+(* Only typechecks the components; the axiom is declared by [register_equivalences] *)
 let add_new_equivalence_core id indA indB terms =
   if Lib.sections_are_opened () then raise (EquivalenceError InSection);
   let kn = Lib.make_kn id in
   if equivalence_exists kn then raise (EquivalenceError AlreadyExists);
+  if Nametab.exists_cci (Lib.make_path id) then raise (EquivalenceError NameUsed);
   let env = Global.env () in
   let sigma = Evd.from_env env in
-  let sigma, axiom_ty, (fwd, bwd, sect, retr) = interp_equivalence env sigma indA indB terms in
-  (* The axiom [id : indA ~ indB]; it also declares the universes of the terms *)
-  let univs = Evd.univ_entry ~poly:false sigma in
-  let entry = Declare.parameter_entry ~univs axiom_ty in
-  let _ : Constant.t =
-    Declare.declare_constant ~name:id ~kind:Decls.(IsAssumption Logical)
-      (Declare.ParameterEntry entry)
-  in
+  let _, (fwd, bwd, sect, retr) = interp_equivalence env sigma indA indB terms in
   let e = {
     eqv_indA = indA;
     eqv_indB = indB;
@@ -202,14 +210,40 @@ let try_add_new_equivalence id ~source ~target terms =
   with EquivalenceError e ->
     user_err (explain_equivalence_error id e ++ str ".")
 
-(* [equivs] are in declaration order, the oldest first *)
+(* The axiom [id : indA ~ indB] witnessing the equivalence *)
+let declare_axiom id e =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let obseq = obseq_inductive () in
+  let sigma, tyA = Evd.fresh_global env sigma (GlobRef.IndRef e.eqv_indA) in
+  let sigma, tyB = Evd.fresh_global env sigma (GlobRef.IndRef e.eqv_indB) in
+  let sigma, axiom_ty = obseq_set_type env sigma obseq tyA tyB in
+  let sigma = Evd.minimize_universes sigma in
+  let univs = Evd.univ_entry ~poly:false sigma in
+  let entry = Declare.parameter_entry ~univs (EConstr.to_constr sigma axiom_ty) in
+  let _ : Constant.t =
+    Declare.declare_constant ~name:id ~kind:Decls.(IsAssumption Logical)
+      (Declare.ParameterEntry entry)
+  in
+  ()
+
+(* [equivs] are in declaration order, the oldest first. Declares the axioms
+   and the cast rules *)
 let register_equivalences equivs =
   if !registered then user_err (str "Can only register equivalences once.");
-  let find c =
-    try equivalence_info (Constant.user c)
+  let find qid =
+    let id =
+      if qualid_is_ident qid then qualid_basename qid
+      else user_err (pr_qualid qid ++ str " is not an equivalence defined in the current module.") in
+    try id, equivalence_info (Lib.make_kn id)
     with Not_found ->
-      user_err (Printer.pr_constant (Global.env ()) c ++ str " is not an equivalence.")
+      user_err (pr_qualid qid ++ str " is not an equivalence defined in the current module.")
   in
   let equivs = List.map find equivs in
+  let _ : Id.Set.t = List.fold_left (fun seen (id, _) ->
+      if Id.Set.mem id seen then
+        user_err (explain_equivalence_error id (Repeated id) ++ str " in the list of equivalences.");
+      Id.Set.add id seen) Id.Set.empty equivs in
   registered := true;
-  declare_cast_rules (List.rev equivs)
+  List.iter (fun (id, e) -> declare_axiom id e) equivs;
+  declare_cast_rules (List.rev_map snd equivs)
